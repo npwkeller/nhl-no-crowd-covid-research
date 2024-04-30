@@ -1,0 +1,485 @@
+---
+title: "NHL Covid Impact ECON 1700"
+author: "Ian Keller"
+date: "2024-04-01"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+### Reading in data
+
+```{r}
+#2016 Season
+nhl_2016 <- read.csv("nhl_2016.csv")
+nhl_2016_playoffs <- read.csv("nhl_2016_playoffs.csv")
+
+#2017 Season
+nhl_2017 <- read.csv("nhl_2017.csv")
+nhl_2017_playoffs <- read.csv("nhl_2017_playoffs.csv")
+
+#2018 Season
+nhl_2018 <- read.csv("nhl_2018.csv")
+nhl_2018_playoffs <- read.csv("nhl_2018_playoffs.csv")
+
+#2019 Season
+nhl_2019 <- read.csv("nhl_2019.csv")
+nhl_2019_playoffs <- read.csv("nhl_2019_playoffs.csv")
+
+#2020 Season
+nhl_2020 <- read.csv("nhl_2020.csv")
+nhl_2020_playoffs <- read.csv("nhl_2020_playoffs.csv")
+
+#2021 Season
+nhl_2021 <- read.csv("nhl_2021.csv")
+nhl_2021_playoffs <- read.csv("nhl_2021_playoffs.csv")
+
+#May not include the following data after covid.
+
+#2022 Season
+nhl_2022 <- read.csv("nhl_2022.csv")
+nhl_2022_playoffs <- read.csv("nhl_2022_playoffs.csv")
+
+#2023 Season
+nhl_2023 <- read.csv("nhl_2023.csv")
+nhl_2023_playoffs <- read.csv("nhl_2023_playoffs.csv")
+```
+
+### Creating playoff variable
+
+```{r}
+# Playoff = 1
+nhl_2016_playoffs$playoffs = 1
+nhl_2017_playoffs$playoffs = 1
+nhl_2018_playoffs$playoffs = 1
+nhl_2019_playoffs$playoffs = 1
+nhl_2020_playoffs$playoffs = 1
+nhl_2021_playoffs$playoffs = 1
+nhl_2022_playoffs$playoffs = 1
+nhl_2023_playoffs$playoffs = 1
+
+#Playoff = 0
+nhl_2016$playoffs = 0
+nhl_2017$playoffs = 0
+nhl_2018$playoffs = 0
+nhl_2019$playoffs = 0
+nhl_2020$playoffs = 0
+nhl_2021$playoffs = 0
+nhl_2022$playoffs = 0
+nhl_2023$playoffs = 0
+```
+###Creating Season Variable
+```{r}
+nhl_2016_playoffs$season = 2016
+nhl_2017_playoffs$season = 2017
+nhl_2018_playoffs$season = 2018
+nhl_2019_playoffs$season = 2019
+nhl_2020_playoffs$season = 2020
+nhl_2021_playoffs$season = 2021
+nhl_2022_playoffs$season = 2022
+nhl_2023_playoffs$season = 2023
+
+#Playoff = 0
+nhl_2016$season = 2016
+nhl_2017$season = 2017
+nhl_2018$season = 2018
+nhl_2019$season = 2019
+nhl_2020$season = 2020
+nhl_2021$season = 2021
+nhl_2022$season = 2022
+nhl_2023$season = 2023
+```
+
+
+
+### Merging Data
+
+```{r}
+# Merge each season with playoffs
+merged_2016 <- rbind(nhl_2016, nhl_2016_playoffs)
+merged_2017 <- rbind(nhl_2017, nhl_2017_playoffs)
+merged_2018 <- rbind(nhl_2018, nhl_2018_playoffs)
+merged_2019 <- rbind(nhl_2019, nhl_2019_playoffs)
+merged_2020 <- rbind(nhl_2020, nhl_2020_playoffs)
+merged_2021 <- rbind(nhl_2021, nhl_2021_playoffs)
+merged_2022 <- rbind(nhl_2022, nhl_2022_playoffs)
+merged_2023 <- rbind(nhl_2023, nhl_2023_playoffs)
+
+#merging all seasons
+merged_all <- rbind(merged_2016, merged_2017, merged_2018, merged_2019, merged_2020, merged_2021, merged_2022, merged_2023)
+#Merging all the data up to Covid-19
+merged_covid <- rbind(merged_2016, merged_2017, merged_2018, merged_2019, merged_2020, merged_2021)
+
+#merging all of the playoff games
+merged_playoffs <- rbind(nhl_2016_playoffs, nhl_2017_playoffs, nhl_2018_playoffs, nhl_2019_playoffs, nhl_2020_playoffs, nhl_2020_playoffs)
+```
+
+### Cleaning Data
+
+Converting NA's to Zeroes
+
+```{r}
+merged_covid[is.na(merged_covid)] <- 0
+```
+
+###Creating Distance Data for Team Distances
+
+```{r}
+nhl_distance <- read.csv("nhl_distance.csv", header = TRUE, sep = ",")
+nhl_distance <- nhl_distance[1:33, 1:33]
+#Cleaning data
+nhl_distance[nhl_distance == "-"] <- 0
+nhl_distance <- nhl_distance[-nrow(nhl_distance), ]
+
+#Changing Row and Column names
+new_column_names <- nhl_distance[, 1]
+new_column_names[14] = "Los Angeles Kings"
+
+rownames(nhl_distance) <- new_column_names
+nhl_distance <- nhl_distance[, -1]
+colnames(nhl_distance) <- new_column_names
+
+```
+
+Creating Binary values
+
+```{r}
+nhl_distance_numeric <- as.data.frame(lapply(nhl_distance, as.numeric))
+distance_final <- ifelse(nhl_distance_numeric < 300, 1, 0)
+colnames(distance_final) <- new_column_names
+rownames(distance_final) <- new_column_names
+```
+
+Removing Individual Team from matrix diagonal
+
+```{r}
+# Get the number of rows and columns
+n <- nrow(distance_final)
+m <- ncol(distance_final)
+
+# Loop through each element in the diagonal and set it to 0
+for (i in 1:min(n, m)) {
+  distance_final[i, i] <- 0
+}
+```
+
+Combined Names
+
+```{r}
+#rownames(distance_final)[1]
+#distance_final[1,]
+distance_final <- as.data.frame(distance_final)
+
+# Initialize an empty vector to store the messages
+close_games <- c()
+
+# Iterate over each row
+for (i in 1:nrow(distance_final)) {
+  # Check if the row contains a 1
+  if (1 %in% distance_final[i, ]) {
+    # Find the column name where 1 exists
+    col_name <- names(distance_final)[which(distance_final[i, ] == 1)]
+    # Construct the message
+    message <- paste(rownames(distance_final)[i], "@", col_name)
+    # Append the message to the vector
+    close_games <- c(close_games, message)
+  }
+}
+
+# Print all captured lines
+print(close_games)
+
+
+
+```
+
+Creating Team versus Team String Variables
+
+```{r}
+merged_covid$matchup <- paste(merged_covid$Visitor, merged_covid$Home, sep = " @ ") 
+```
+
+Iterating through matchups to see if it is contained within close games
+
+```{r}
+# Initialize an empty list to store 1's and 0's
+close_list <- c()
+
+# Iterate over each row
+for (i in 1:nrow(merged_covid)) {
+  if (merged_covid$matchup[i] %in% close_games) {
+    close_list <- c(close_list, 1)
+  } else {
+    close_list <- c(close_list, 0)
+  }
+}
+
+merged_covid <- cbind(merged_covid, close_matchup = close_list)
+```
+
+```{r}
+paste("Number of Close games:", sum(merged_covid$close_matchup))
+```
+
+###Variable Creation ####Creating Variables for home differential and a binary variable for if there were fans or not(0 if fans yes, 1 if fans no). Here, I will just be looking at the 5 regular seasons before Covid along with Covid impacted seasons.
+
+```{r}
+#All Games
+merged_covid$home_difference <- merged_covid$G.1 - merged_covid$G
+merged_covid$no_crowd <- ifelse(merged_covid$Att. == 0, 1, 0)
+merged_covid$home_wins <- ifelse(merged_covid$G.1 > merged_covid$G, 1, 0)
+```
+
+###Running the linear regression model This first model looks at a holistic view of the NHL seasons from 2015-16 to 2020-2021.
+
+```{r}
+model <- lm(home_difference ~ no_crowd, data = merged_covid)
+
+summary(model)
+anova(model)
+
+
+model2 <- lm(home_difference ~ no_crowd, data = merged_covid[merged_covid$season %in% c(2020,2021), ])
+summary(model2)
+
+```
+
+Next, I will look at the impact on playoffs as crowds tend to be more full and excited for rivalry and important games. It is important to note the bias in the playoffs that in a 7 game series the "better team" based on regular season standings has more home games then the away team.
+
+### Simple Playoff Model
+```{r}
+#cleaning data and creating variables
+merged_playoffs[is.na(merged_playoffs)] <- 0
+#Playoff Games
+merged_playoffs$home_difference <- merged_playoffs$G.1 - merged_playoffs$G
+merged_playoffs$no_crowd <- ifelse(merged_playoffs$Att. == 0, 1, 0)
+
+
+model_playoffs <- lm(home_difference ~ no_crowd, data = merged_playoffs)
+summary(model_playoffs)
+```
+
+### Looking at the 2021 regular season as teams only played in conference. Fixed effects for matchup?
+
+```{r}
+#Cleaning data and adding variables
+nhl_2021[is.na(nhl_2021)] <- 0
+nhl_2021$home_difference <- nhl_2021$G.1 - nhl_2021$G
+nhl_2021$no_crowd <- ifelse(nhl_2021$Att. == 0, 1, 0)
+
+
+model_2021 <- lm(home_difference ~ no_crowd, data = nhl_2021)
+summary(model_2021)
+```
+
+### Creating Playoff and Crowd interaction variable
+
+```{r}
+model_interaction <- lm(home_difference ~ no_crowd + playoffs + no_crowd*playoffs, data = merged_covid)
+
+summary(model_interaction)
+anova(model_interaction)
+```
+
+### Full Model
+
+```{r}
+full_model <- lm(home_difference ~ no_crowd + close_matchup + playoffs + no_crowd*playoffs + no_crowd*close_matchup, data = merged_covid)
+summary(full_model)
+```
+### Full Model 2020-2021
+```{r}
+full_model_2021 <- lm(home_difference ~ no_crowd + close_matchup + playoffs + no_crowd*playoffs + no_crowd*close_matchup, data = merged_covid[merged_covid$season %in% c(2020,2021), ])
+summary(full_model_2021)
+```
+
+
+
+### Fixed Effects
+```{r}
+library(lfe)
+fe_reg <- felm(home_difference ~ no_crowd + no_crowd*playoffs | 
+                 matchup, data = merged_covid) #[merged_covid$season %in% c(2020,2021), ])
+
+summary(fe_reg)
+```
+Ran into multicollinearity when modeling with close_game and fe of matchup, since within certain matchups it always will be a close game or not.
+
+```{r}
+library(lfe)
+fe_reg_covid <- felm(home_difference ~ no_crowd + no_crowd*playoffs | 
+                 matchup, data = merged_covid[merged_covid$season %in% c(2020,2021), ])
+
+summary(fe_reg_covid)
+```
+Just looking at crowd fixed on matchup
+```{r}
+library(lfe)
+fe_reg_crowd <- felm(home_difference ~ no_crowd | 
+                 matchup, data = merged_covid[merged_covid$season %in% c(2020,2021), ])
+
+summary(fe_reg_crowd)
+```
+
+
+
+
+
+### Just looking at close matchups
+
+```{r}
+model_close <- lm(home_difference ~ no_crowd + close_matchup + no_crowd*close_matchup, data = merged_covid)
+summary(model_close)
+```
+
+### Exploring Logistic Regression
+
+```{r}
+log_model <- glm(home_wins ~ no_crowd + close_matchup + playoffs + no_crowd*playoffs + no_crowd*close_matchup, family = "binomial", data = merged_covid)
+summary(log_model)
+```
+Interpreting Full Model
+```{r}
+full_coef <- coef(log_model)
+interp <- NULL
+for (i in 1:length(full_coef)) {
+  coef_i <- exp((full_coef)[[i]]) - 1
+  coef_good <- coef_i *100
+  coef_round <- round(coef_good,4)
+  results <- paste("beta", i-1, "interprets as a", coef_round, "% increase/decrease")
+  interp <- c(interp, results)
+}
+
+interp
+```
+
+
+
+
+
+Simple log model
+
+```{r}
+simple_log <- glm(home_wins ~ no_crowd, data = merged_covid, family = "binomial")
+summary(simple_log)
+```
+Interpreting Logistic Coefficients
+```{r}
+intercept = exp(coef(simple_log)[[1]]) - 1
+print(intercept)
+
+coef_b1 <- exp(coef(simple_log)[[2]]) - 1
+print(coef_b1)
+
+```
+
+
+
+
+Summing Playoffs and No crowd
+
+```{r}
+# Filter rows where playoffs and no_crowd equal 1
+subset_df <- subset(merged_covid, close_matchup == 1 & no_crowd ==1)
+
+nrow(subset_df)
+```
+
+### Summary Statistics
+```{r}
+summary(merged_covid)
+```
+
+```{r}
+library(ggplot2)
+
+histogram <- ggplot(merged_covid, aes(x = home_difference)) +
+  geom_histogram(binwidth = 1, fill = "lightgrey", color = "black") +  # Adjust binwidth as needed
+  labs(title = "Distribution of Home Difference",
+       x = "Home Difference",
+       y = "Frequency") +
+  theme_minimal()
+
+ggsave("histogram.png", plot = histogram, width = 6, height = 4, dpi = 300)
+```
+
+
+```{r}
+library(ggplot2)
+
+# Assuming merged_covid is your dataset and no_crowd is the binary variable of interest
+
+# Calculate average home_difference for each level of no_crowd
+avg_home_difference <- aggregate(home_difference ~ no_crowd, data = merged_covid, FUN = mean)
+
+# Create a bar chart with black border
+bar_chart <- ggplot(avg_home_difference, aes(x = factor(no_crowd), y = home_difference)) +
+  geom_bar(stat = "identity", fill = "lightgrey", color = "black") +  # Adjust fill color and border color as needed
+  labs(title = "Average Home Difference by Crowd Presence",
+       x = "0 if Crowd, 1 if No Crowd",
+       y = "Average Home Difference") +
+  theme_minimal()
+
+# Display the bar chart
+bar_chart
+
+```
+Avg number of fans
+
+```{r}
+# Assuming 'merged_covid' is your data frame
+# Assuming 'season' and 'Att.' are the column names in your data frame
+
+# Create a histogram for each season
+par(mfrow = c(2, 3)) # Adjust layout to fit multiple plots in one window
+
+# Iterate over unique seasons
+for (s in unique(merged_covid$season)) {
+  # Subset data for the current season
+  season_data <- merged_covid$Att.[merged_covid$season == s]
+  
+  # Plot histogram with adjusted scale and breaks
+  hist(season_data, main = paste("Histogram of Att. for Season", s),
+       xlab = "Att.", ylab = "Frequency", breaks = 10, xlim = c(0, 25000)) # Adjust breaks and xlim as needed
+}
+
+# Reset layout to default
+par(mfrow = c(1, 1))
+
+```
+
+
+```{r}
+hist(merged_covid$Att.)
+```
+
+Simple df
+```{r}
+library(dplyr)
+
+merged_simple_final <- merged_covid %>%
+  select(-X, -Notes, -LOG)
+```
+
+
+```{r}
+summary_table <- summary(merged_simple_final)
+
+# Assuming 'merged_covid' is your data frame containing your variables
+print(summary_table)
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
